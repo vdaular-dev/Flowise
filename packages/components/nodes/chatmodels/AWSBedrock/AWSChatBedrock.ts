@@ -1,15 +1,11 @@
-import { ICommonObject, INode, INodeData, INodeParams } from '../../../src/Interface'
+import { BaseCache } from '@langchain/core/caches'
+import { ICommonObject, IMultiModalOption, INode, INodeData, INodeOptionsValue, INodeParams } from '../../../src/Interface'
 import { getBaseClasses, getCredentialData, getCredentialParam } from '../../../src/utils'
-import { BedrockChat } from 'langchain/chat_models/bedrock'
-import { BaseBedrockInput } from 'langchain/dist/util/bedrock'
-import { BaseCache } from 'langchain/schema'
-import { BaseChatModelParams } from 'langchain/chat_models/base'
+import { getModels, getRegions, MODEL_TYPE } from '../../../src/modelLoader'
+import { ChatBedrockConverseInput, ChatBedrockConverse } from '@langchain/aws'
+import { BedrockChat } from './FlowiseAWSChatBedrock'
 
 /**
- * I had to run the following to build the component
- * and get the icon copied over to the dist directory
- * Flowise/packages/components > yarn build
- *
  * @author Michael Connor <mlconnor@yahoo.com>
  */
 class AWSChatBedrock_ChatModels implements INode {
@@ -27,12 +23,12 @@ class AWSChatBedrock_ChatModels implements INode {
     constructor() {
         this.label = 'AWS ChatBedrock'
         this.name = 'awsChatBedrock'
-        this.version = 3.0
+        this.version = 6.0
         this.type = 'AWSChatBedrock'
         this.icon = 'aws.svg'
         this.category = 'Chat Models'
-        this.description = 'Wrapper around AWS Bedrock large language models that use the Chat endpoint'
-        this.baseClasses = [this.type, ...getBaseClasses(BedrockChat)]
+        this.description = 'Wrapper around AWS Bedrock large language models that use the Converse API'
+        this.baseClasses = [this.type, ...getBaseClasses(ChatBedrockConverse)]
         this.credential = {
             label: 'AWS Credential',
             name: 'credential',
@@ -50,57 +46,16 @@ class AWSChatBedrock_ChatModels implements INode {
             {
                 label: 'Region',
                 name: 'region',
-                type: 'options',
-                options: [
-                    { label: 'af-south-1', name: 'af-south-1' },
-                    { label: 'ap-east-1', name: 'ap-east-1' },
-                    { label: 'ap-northeast-1', name: 'ap-northeast-1' },
-                    { label: 'ap-northeast-2', name: 'ap-northeast-2' },
-                    { label: 'ap-northeast-3', name: 'ap-northeast-3' },
-                    { label: 'ap-south-1', name: 'ap-south-1' },
-                    { label: 'ap-south-2', name: 'ap-south-2' },
-                    { label: 'ap-southeast-1', name: 'ap-southeast-1' },
-                    { label: 'ap-southeast-2', name: 'ap-southeast-2' },
-                    { label: 'ap-southeast-3', name: 'ap-southeast-3' },
-                    { label: 'ap-southeast-4', name: 'ap-southeast-4' },
-                    { label: 'ap-southeast-5', name: 'ap-southeast-5' },
-                    { label: 'ap-southeast-6', name: 'ap-southeast-6' },
-                    { label: 'ca-central-1', name: 'ca-central-1' },
-                    { label: 'ca-west-1', name: 'ca-west-1' },
-                    { label: 'cn-north-1', name: 'cn-north-1' },
-                    { label: 'cn-northwest-1', name: 'cn-northwest-1' },
-                    { label: 'eu-central-1', name: 'eu-central-1' },
-                    { label: 'eu-central-2', name: 'eu-central-2' },
-                    { label: 'eu-north-1', name: 'eu-north-1' },
-                    { label: 'eu-south-1', name: 'eu-south-1' },
-                    { label: 'eu-south-2', name: 'eu-south-2' },
-                    { label: 'eu-west-1', name: 'eu-west-1' },
-                    { label: 'eu-west-2', name: 'eu-west-2' },
-                    { label: 'eu-west-3', name: 'eu-west-3' },
-                    { label: 'il-central-1', name: 'il-central-1' },
-                    { label: 'me-central-1', name: 'me-central-1' },
-                    { label: 'me-south-1', name: 'me-south-1' },
-                    { label: 'sa-east-1', name: 'sa-east-1' },
-                    { label: 'us-east-1', name: 'us-east-1' },
-                    { label: 'us-east-2', name: 'us-east-2' },
-                    { label: 'us-gov-east-1', name: 'us-gov-east-1' },
-                    { label: 'us-gov-west-1', name: 'us-gov-west-1' },
-                    { label: 'us-west-1', name: 'us-west-1' },
-                    { label: 'us-west-2', name: 'us-west-2' }
-                ],
+                type: 'asyncOptions',
+                loadMethod: 'listRegions',
                 default: 'us-east-1'
             },
             {
                 label: 'Model Name',
                 name: 'model',
-                type: 'options',
-                options: [
-                    { label: 'anthropic.claude-instant-v1', name: 'anthropic.claude-instant-v1' },
-                    { label: 'anthropic.claude-v1', name: 'anthropic.claude-v1' },
-                    { label: 'anthropic.claude-v2', name: 'anthropic.claude-v2' },
-                    { label: 'meta.llama2-13b-chat-v1', name: 'meta.llama2-13b-chat-v1' }
-                ],
-                default: 'anthropic.claude-v2'
+                type: 'asyncOptions',
+                loadMethod: 'listModels',
+                default: 'anthropic.claude-3-haiku-20240307-v1:0'
             },
             {
                 label: 'Custom Model Name',
@@ -108,6 +63,14 @@ class AWSChatBedrock_ChatModels implements INode {
                 description: 'If provided, will override model selected from Model Name option',
                 type: 'string',
                 optional: true
+            },
+            {
+                label: 'Streaming',
+                name: 'streaming',
+                type: 'boolean',
+                default: true,
+                optional: true,
+                additionalParams: true
             },
             {
                 label: 'Temperature',
@@ -128,8 +91,27 @@ class AWSChatBedrock_ChatModels implements INode {
                 optional: true,
                 additionalParams: true,
                 default: 200
+            },
+            {
+                label: 'Allow Image Uploads',
+                name: 'allowImageUploads',
+                type: 'boolean',
+                description:
+                    'Allow image input. Refer to the <a href="https://docs.flowiseai.com/using-flowise/uploads#image" target="_blank">docs</a> for more details.',
+                default: false,
+                optional: true
             }
         ]
+    }
+
+    //@ts-ignore
+    loadMethods = {
+        async listModels(): Promise<INodeOptionsValue[]> {
+            return await getModels(MODEL_TYPE.CHAT, 'awsChatBedrock')
+        },
+        async listRegions(): Promise<INodeOptionsValue[]> {
+            return await getRegions(MODEL_TYPE.CHAT, 'awsChatBedrock')
+        }
     }
 
     async init(nodeData: INodeData, _: string, options: ICommonObject): Promise<any> {
@@ -141,7 +123,7 @@ class AWSChatBedrock_ChatModels implements INode {
         const cache = nodeData.inputs?.cache as BaseCache
         const streaming = nodeData.inputs?.streaming as boolean
 
-        const obj: BaseBedrockInput & BaseChatModelParams = {
+        const obj: ChatBedrockConverseInput = {
             region: iRegion,
             model: customModel ? customModel : iModel,
             maxTokens: parseInt(iMax_tokens_to_sample, 10),
@@ -170,7 +152,16 @@ class AWSChatBedrock_ChatModels implements INode {
         }
         if (cache) obj.cache = cache
 
-        const amazonBedrock = new BedrockChat(obj)
+        const allowImageUploads = nodeData.inputs?.allowImageUploads as boolean
+
+        const multiModalOption: IMultiModalOption = {
+            image: {
+                allowImageUploads: allowImageUploads ?? false
+            }
+        }
+
+        const amazonBedrock = new BedrockChat(nodeData.id, obj)
+        amazonBedrock.setMultiModalOption(multiModalOption)
         return amazonBedrock
     }
 }

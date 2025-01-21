@@ -1,8 +1,8 @@
+import { ChatOpenAI, OpenAIChatInput } from '@langchain/openai'
+import { BaseCache } from '@langchain/core/caches'
+import { BaseLLMParams } from '@langchain/core/language_models/llms'
 import { ICommonObject, INode, INodeData, INodeParams } from '../../../src/Interface'
 import { getBaseClasses, getCredentialData, getCredentialParam } from '../../../src/utils'
-import { ChatOpenAI, OpenAIChatInput } from 'langchain/chat_models/openai'
-import { BaseCache } from 'langchain/schema'
-import { BaseLLMParams } from 'langchain/llms/base'
 
 class ChatOpenAICustom_ChatModels implements INode {
     label: string
@@ -19,7 +19,7 @@ class ChatOpenAICustom_ChatModels implements INode {
     constructor() {
         this.label = 'ChatOpenAI Custom'
         this.name = 'chatOpenAICustom'
-        this.version = 2.0
+        this.version = 4.0
         this.type = 'ChatOpenAI-Custom'
         this.icon = 'openai.svg'
         this.category = 'Chat Models'
@@ -52,6 +52,14 @@ class ChatOpenAICustom_ChatModels implements INode {
                 step: 0.1,
                 default: 0.9,
                 optional: true
+            },
+            {
+                label: 'Streaming',
+                name: 'streaming',
+                type: 'boolean',
+                default: true,
+                optional: true,
+                additionalParams: true
             },
             {
                 label: 'Max Tokens',

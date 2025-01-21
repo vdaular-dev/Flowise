@@ -1,7 +1,7 @@
-import { ICommonObject, IDatabaseEntity, INode, INodeData, INodeOutputsValue, INodeParams } from '../../../src/Interface'
-import { NodeVM } from 'vm2'
+import { NodeVM } from '@flowiseai/nodevm'
 import { DataSource } from 'typeorm'
-import { availableDependencies, defaultAllowBuiltInDep, getVars, prepareSandboxVars } from '../../../src/utils'
+import { availableDependencies, defaultAllowBuiltInDep, getVars, handleEscapeCharacters, prepareSandboxVars } from '../../../src/utils'
+import { ICommonObject, IDatabaseEntity, INode, INodeData, INodeOutputsValue, INodeParams } from '../../../src/Interface'
 
 class IfElseFunction_Utilities implements INode {
     label: string
@@ -11,6 +11,7 @@ class IfElseFunction_Utilities implements INode {
     type: string
     icon: string
     category: string
+    tags: string[]
     baseClasses: string[]
     inputs: INodeParams[]
     outputs: INodeOutputsValue[]
@@ -18,12 +19,13 @@ class IfElseFunction_Utilities implements INode {
     constructor() {
         this.label = 'IfElse Function'
         this.name = 'ifElseFunction'
-        this.version = 1.0
+        this.version = 2.0
         this.type = 'IfElseFunction'
         this.icon = 'ifelsefunction.svg'
         this.category = 'Utilities'
         this.description = `Split flows based on If Else javascript functions`
         this.baseClasses = [this.type, 'Utilities']
+        this.tags = ['Utilities']
         this.inputs = [
             {
                 label: 'Input Variables',
@@ -64,12 +66,14 @@ class IfElseFunction_Utilities implements INode {
             {
                 label: 'True',
                 name: 'returnTrue',
-                baseClasses: ['string', 'number', 'boolean', 'json', 'array']
+                baseClasses: ['string', 'number', 'boolean', 'json', 'array'],
+                isAnchor: true
             },
             {
                 label: 'False',
                 name: 'returnFalse',
-                baseClasses: ['string', 'number', 'boolean', 'json', 'array']
+                baseClasses: ['string', 'number', 'boolean', 'json', 'array'],
+                isAnchor: true
             }
         ]
     }
@@ -95,11 +99,34 @@ class IfElseFunction_Utilities implements INode {
                 inputVars =
                     typeof functionInputVariablesRaw === 'object' ? functionInputVariablesRaw : JSON.parse(functionInputVariablesRaw)
             } catch (exception) {
-                throw new Error("Invalid JSON in the PromptTemplate's promptValues: " + exception)
+                throw new Error("Invalid JSON in the IfElse's Input Variables: " + exception)
             }
         }
 
-        let sandbox: any = { $input: input }
+        // Some values might be a stringified JSON, parse it
+        for (const key in inputVars) {
+            let value = inputVars[key]
+            if (typeof value === 'string') {
+                value = handleEscapeCharacters(value, true)
+                if (value.startsWith('{') && value.endsWith('}')) {
+                    try {
+                        value = JSON.parse(value)
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+                inputVars[key] = value
+            }
+        }
+
+        let sandbox: any = {
+            $input: input,
+            util: undefined,
+            Symbol: undefined,
+            child_process: undefined,
+            fs: undefined,
+            process: undefined
+        }
         sandbox['$vars'] = prepareSandboxVars(variables)
         sandbox['$flow'] = flow
 
@@ -121,16 +148,20 @@ class IfElseFunction_Utilities implements INode {
             require: {
                 external: { modules: deps },
                 builtin: builtinDeps
-            }
+            },
+            eval: false,
+            wasm: false,
+            timeout: 10000
         } as any
 
         const vm = new NodeVM(nodeVMOptions)
         try {
             const responseTrue = await vm.run(`module.exports = async function() {${ifFunction}}()`, __dirname)
-            if (responseTrue) return { output: responseTrue, type: true }
+            if (responseTrue)
+                return { output: typeof responseTrue === 'string' ? handleEscapeCharacters(responseTrue, false) : responseTrue, type: true }
 
             const responseFalse = await vm.run(`module.exports = async function() {${elseFunction}}()`, __dirname)
-            return { output: responseFalse, type: false }
+            return { output: typeof responseFalse === 'string' ? handleEscapeCharacters(responseFalse, false) : responseFalse, type: false }
         } catch (e) {
             throw new Error(e)
         }
