@@ -1,8 +1,18 @@
 // assets
-import { IconHierarchy, IconBuildingStore, IconKey, IconTool, IconLock, IconRobot, IconVariable } from '@tabler/icons'
+import {
+    IconUsersGroup,
+    IconHierarchy,
+    IconBuildingStore,
+    IconKey,
+    IconTool,
+    IconLock,
+    IconRobot,
+    IconVariable,
+    IconFiles
+} from '@tabler/icons-react'
 
 // constant
-const icons = { IconHierarchy, IconBuildingStore, IconKey, IconTool, IconLock, IconRobot, IconVariable }
+const icons = { IconUsersGroup, IconHierarchy, IconBuildingStore, IconKey, IconTool, IconLock, IconRobot, IconVariable, IconFiles }
 
 // ==============================|| DASHBOARD MENU ITEMS ||============================== //
 
@@ -20,6 +30,23 @@ const dashboard = {
             breadcrumbs: true
         },
         {
+            id: 'agentflows',
+            title: 'Agentflows',
+            type: 'item',
+            url: '/agentflows',
+            icon: icons.IconUsersGroup,
+            breadcrumbs: true,
+            isBeta: true
+        },
+        {
+            id: 'assistants',
+            title: 'Assistants',
+            type: 'item',
+            url: '/assistants',
+            icon: icons.IconRobot,
+            breadcrumbs: true
+        },
+        {
             id: 'marketplaces',
             title: 'Marketplaces',
             type: 'item',
@@ -33,14 +60,6 @@ const dashboard = {
             type: 'item',
             url: '/tools',
             icon: icons.IconTool,
-            breadcrumbs: true
-        },
-        {
-            id: 'assistants',
-            title: 'Assistants',
-            type: 'item',
-            url: '/assistants',
-            icon: icons.IconRobot,
             breadcrumbs: true
         },
         {
@@ -65,6 +84,14 @@ const dashboard = {
             type: 'item',
             url: '/apikey',
             icon: icons.IconKey,
+            breadcrumbs: true
+        },
+        {
+            id: 'document-stores',
+            title: 'Document Stores',
+            type: 'item',
+            url: '/document-stores',
+            icon: icons.IconFiles,
             breadcrumbs: true
         }
     ]

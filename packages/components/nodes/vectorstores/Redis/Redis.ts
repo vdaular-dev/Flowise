@@ -1,11 +1,11 @@
 import { flatten } from 'lodash'
 import { createClient, SearchOptions } from 'redis'
-import { Embeddings } from 'langchain/embeddings/base'
-import { RedisVectorStore, RedisVectorStoreConfig } from 'langchain/vectorstores/redis'
-import { Document } from 'langchain/document'
-import { ICommonObject, INode, INodeData, INodeOutputsValue, INodeParams } from '../../../src/Interface'
+import { Embeddings } from '@langchain/core/embeddings'
+import { RedisVectorStore, RedisVectorStoreConfig } from '@langchain/community/vectorstores/redis'
+import { Document } from '@langchain/core/documents'
+import { ICommonObject, INode, INodeData, INodeOutputsValue, INodeParams, IndexingResult } from '../../../src/Interface'
 import { getBaseClasses, getCredentialData, getCredentialParam } from '../../../src/utils'
-import { escapeAllStrings, escapeSpecialChars, unEscapeSpecialChars } from './utils'
+import { escapeSpecialChars, unEscapeSpecialChars } from './utils'
 
 class Redis_VectorStores implements INode {
     label: string
@@ -31,7 +31,6 @@ class Redis_VectorStores implements INode {
         this.icon = 'redis.svg'
         this.category = 'Vector Stores'
         this.baseClasses = [this.type, 'VectorStoreRetriever', 'BaseRetriever']
-        this.badge = 'NEW'
         this.credential = {
             label: 'Connect Credential',
             name: 'credential',
@@ -117,7 +116,7 @@ class Redis_VectorStores implements INode {
 
     //@ts-ignore
     vectorStoreMethods = {
-        async upsert(nodeData: INodeData, options: ICommonObject): Promise<void> {
+        async upsert(nodeData: INodeData, options: ICommonObject): Promise<Partial<IndexingResult>> {
             const credentialData = await getCredentialData(nodeData.credential ?? '', options)
             const indexName = nodeData.inputs?.indexName as string
             let contentKey = nodeData.inputs?.contentKey as string
@@ -143,7 +142,6 @@ class Redis_VectorStores implements INode {
             for (let i = 0; i < flattenDocs.length; i += 1) {
                 if (flattenDocs[i] && flattenDocs[i].pageContent) {
                     const document = new Document(flattenDocs[i])
-                    escapeAllStrings(document.metadata)
                     finalDocs.push(document)
                 }
             }
@@ -183,6 +181,10 @@ class Redis_VectorStores implements INode {
                         filter
                     )
                 }
+
+                await redisClient.quit()
+
+                return { numAdded: finalDocs.length, addedDocs: finalDocs }
             } catch (e) {
                 throw new Error(e)
             }
@@ -211,7 +213,6 @@ class Redis_VectorStores implements INode {
         }
 
         const redisClient = createClient({ url: redisUrl })
-        await redisClient.connect()
 
         const storeConfig: RedisVectorStoreConfig = {
             redisClient: redisClient,
@@ -226,7 +227,19 @@ class Redis_VectorStores implements INode {
 
         // Avoid Illegal invocation error
         vectorStore.similaritySearchVectorWithScore = async (query: number[], k: number, filter?: any) => {
-            return await similaritySearchVectorWithScore(query, k, indexName, metadataKey, vectorKey, contentKey, redisClient, filter)
+            await redisClient.connect()
+            const results = await similaritySearchVectorWithScore(
+                query,
+                k,
+                indexName,
+                metadataKey,
+                vectorKey,
+                contentKey,
+                redisClient,
+                filter
+            )
+            await redisClient.quit()
+            return results
         }
 
         if (output === 'retriever') {

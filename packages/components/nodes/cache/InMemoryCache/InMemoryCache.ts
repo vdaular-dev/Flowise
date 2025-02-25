@@ -1,6 +1,6 @@
-import { getBaseClasses, ICommonObject, INode, INodeData, INodeParams } from '../../../src'
-import { BaseCache } from 'langchain/schema'
+import { BaseCache } from '@langchain/core/caches'
 import hash from 'object-hash'
+import { getBaseClasses, ICommonObject, INode, INodeData, INodeParams } from '../../../src'
 
 class InMemoryCache implements INode {
     label: string
@@ -27,17 +27,17 @@ class InMemoryCache implements INode {
     }
 
     async init(nodeData: INodeData, _: string, options: ICommonObject): Promise<any> {
-        const memoryMap = options.cachePool.getLLMCache(options.chatflowid) ?? new Map()
+        const memoryMap = (await options.cachePool.getLLMCache(options.chatflowid)) ?? new Map()
         const inMemCache = new InMemoryCacheExtended(memoryMap)
 
         inMemCache.lookup = async (prompt: string, llmKey: string): Promise<any | null> => {
-            const memory = options.cachePool.getLLMCache(options.chatflowid) ?? inMemCache.cache
+            const memory = (await options.cachePool.getLLMCache(options.chatflowid)) ?? inMemCache.cache
             return Promise.resolve(memory.get(getCacheKey(prompt, llmKey)) ?? null)
         }
 
         inMemCache.update = async (prompt: string, llmKey: string, value: any): Promise<void> => {
             inMemCache.cache.set(getCacheKey(prompt, llmKey), value)
-            options.cachePool.addLLMCache(options.chatflowid, inMemCache.cache)
+            await options.cachePool.addLLMCache(options.chatflowid, inMemCache.cache)
         }
         return inMemCache
     }

@@ -1,9 +1,9 @@
-import { ICommonObject, INode, INodeData, INodeOutputsValue, INodeParams } from '../../../src/Interface'
-import { BaseRetriever } from 'langchain/schema/retriever'
+import { BaseRetriever } from '@langchain/core/retrievers'
+import { VectorStoreRetriever } from '@langchain/core/vectorstores'
 import { ContextualCompressionRetriever } from 'langchain/retrievers/contextual_compression'
-import { getCredentialData, getCredentialParam, handleEscapeCharacters } from '../../../src'
 import { CohereRerank } from './CohereRerank'
-import { VectorStoreRetriever } from 'langchain/vectorstores/base'
+import { getCredentialData, getCredentialParam, handleEscapeCharacters } from '../../../src'
+import { ICommonObject, INode, INodeData, INodeOutputsValue, INodeParams } from '../../../src/Interface'
 
 class CohereRerankRetriever_Retrievers implements INode {
     label: string
@@ -26,7 +26,6 @@ class CohereRerankRetriever_Retrievers implements INode {
         this.type = 'Cohere Rerank Retriever'
         this.icon = 'Cohere.svg'
         this.category = 'Retrievers'
-        this.badge = 'NEW'
         this.description = 'Cohere Rerank indexes the documents from most to least semantically relevant to the query.'
         this.baseClasses = [this.type, 'BaseRetriever']
         this.credential = {
@@ -47,15 +46,19 @@ class CohereRerankRetriever_Retrievers implements INode {
                 type: 'options',
                 options: [
                     {
-                        label: 'rerank-english-v2.0',
-                        name: 'rerank-english-v2.0'
+                        label: 'rerank-v3.5',
+                        name: 'rerank-v3.5'
                     },
                     {
-                        label: 'rerank-multilingual-v2.0',
-                        name: 'rerank-multilingual-v2.0'
+                        label: 'rerank-english-v3.0',
+                        name: 'rerank-english-v3.0'
+                    },
+                    {
+                        label: 'rerank-multilingual-v3.0',
+                        name: 'rerank-multilingual-v3.0'
                     }
                 ],
-                default: 'rerank-english-v2.0',
+                default: 'rerank-v3.5',
                 optional: true
             },
             {
@@ -94,11 +97,13 @@ class CohereRerankRetriever_Retrievers implements INode {
             {
                 label: 'Document',
                 name: 'document',
-                baseClasses: ['Document']
+                description: 'Array of document objects containing metadata and pageContent',
+                baseClasses: ['Document', 'json']
             },
             {
                 label: 'Text',
                 name: 'text',
+                description: 'Concatenated string from pageContent of documents',
                 baseClasses: ['string', 'json']
             }
         ]

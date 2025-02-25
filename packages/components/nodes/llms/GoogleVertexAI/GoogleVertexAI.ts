@@ -1,8 +1,8 @@
-import { ICommonObject, INode, INodeData, INodeParams } from '../../../src/Interface'
+import { BaseCache } from '@langchain/core/caches'
+import { VertexAI, VertexAIInput } from '@langchain/google-vertexai'
+import { ICommonObject, INode, INodeData, INodeOptionsValue, INodeParams } from '../../../src/Interface'
 import { getBaseClasses, getCredentialData, getCredentialParam } from '../../../src/utils'
-import { GoogleVertexAI, GoogleVertexAITextInput } from 'langchain/llms/googlevertexai'
-import { GoogleAuthOptions } from 'google-auth-library'
-import { BaseCache } from 'langchain/schema'
+import { getModels, MODEL_TYPE } from '../../../src/modelLoader'
 
 class GoogleVertexAI_LLMs implements INode {
     label: string
@@ -19,12 +19,12 @@ class GoogleVertexAI_LLMs implements INode {
     constructor() {
         this.label = 'GoogleVertexAI'
         this.name = 'googlevertexai'
-        this.version = 2.0
+        this.version = 3.0
         this.type = 'GoogleVertexAI'
         this.icon = 'GoogleVertex.svg'
         this.category = 'LLMs'
         this.description = 'Wrapper around GoogleVertexAI large language models'
-        this.baseClasses = [this.type, ...getBaseClasses(GoogleVertexAI)]
+        this.baseClasses = [this.type, ...getBaseClasses(VertexAI)]
         this.credential = {
             label: 'Connect Credential',
             name: 'credential',
@@ -44,33 +44,8 @@ class GoogleVertexAI_LLMs implements INode {
             {
                 label: 'Model Name',
                 name: 'modelName',
-                type: 'options',
-                options: [
-                    {
-                        label: 'text-bison',
-                        name: 'text-bison'
-                    },
-                    {
-                        label: 'code-bison',
-                        name: 'code-bison'
-                    },
-                    {
-                        label: 'code-gecko',
-                        name: 'code-gecko'
-                    },
-                    {
-                        label: 'text-bison-32k',
-                        name: 'text-bison-32k'
-                    },
-                    {
-                        label: 'code-bison-32k',
-                        name: 'code-bison-32k'
-                    },
-                    {
-                        label: 'code-gecko-32k',
-                        name: 'code-gecko-32k'
-                    }
-                ],
+                type: 'asyncOptions',
+                loadMethod: 'listModels',
                 default: 'text-bison'
             },
             {
@@ -100,13 +75,20 @@ class GoogleVertexAI_LLMs implements INode {
         ]
     }
 
+    //@ts-ignore
+    loadMethods = {
+        async listModels(): Promise<INodeOptionsValue[]> {
+            return await getModels(MODEL_TYPE.LLM, 'googlevertexai')
+        }
+    }
+
     async init(nodeData: INodeData, _: string, options: ICommonObject): Promise<any> {
         const credentialData = await getCredentialData(nodeData.credential ?? '', options)
         const googleApplicationCredentialFilePath = getCredentialParam('googleApplicationCredentialFilePath', credentialData, nodeData)
         const googleApplicationCredential = getCredentialParam('googleApplicationCredential', credentialData, nodeData)
         const projectID = getCredentialParam('projectID', credentialData, nodeData)
 
-        const authOptions: GoogleAuthOptions = {}
+        const authOptions: any = {}
         if (Object.keys(credentialData).length !== 0) {
             if (!googleApplicationCredentialFilePath && !googleApplicationCredential)
                 throw new Error('Please specify your Google Application Credential')
@@ -129,7 +111,7 @@ class GoogleVertexAI_LLMs implements INode {
         const topP = nodeData.inputs?.topP as string
         const cache = nodeData.inputs?.cache as BaseCache
 
-        const obj: Partial<GoogleVertexAITextInput> = {
+        const obj: Partial<VertexAIInput> = {
             temperature: parseFloat(temperature),
             model: modelName
         }
@@ -139,7 +121,7 @@ class GoogleVertexAI_LLMs implements INode {
         if (topP) obj.topP = parseFloat(topP)
         if (cache) obj.cache = cache
 
-        const model = new GoogleVertexAI(obj)
+        const model = new VertexAI(obj)
         return model
     }
 }
