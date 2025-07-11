@@ -1,7 +1,7 @@
 import { ICommonObject, INode, INodeData, INodeOptionsValue, INodeParams, IServerSideEventStreamer } from '../../../src/Interface'
 import { updateFlowState } from '../utils'
 import { Tool } from '@langchain/core/tools'
-import { ARTIFACTS_PREFIX } from '../../../src/agents'
+import { ARTIFACTS_PREFIX, TOOL_ARGS_PREFIX } from '../../../src/agents'
 import zodToJsonSchema from 'zod-to-json-schema'
 
 interface IToolInputArgs {
@@ -125,7 +125,10 @@ class Tool_Agentflow implements INode {
         async listToolInputArgs(nodeData: INodeData, options: ICommonObject): Promise<INodeOptionsValue[]> {
             const currentNode = options.currentNode as ICommonObject
             const selectedTool = (currentNode?.inputs?.selectedTool as string) || (currentNode?.inputs?.toolAgentflowSelectedTool as string)
-            const selectedToolConfig = currentNode?.inputs?.selectedToolConfig as ICommonObject
+            const selectedToolConfig =
+                (currentNode?.inputs?.selectedToolConfig as ICommonObject) ||
+                (currentNode?.inputs?.toolAgentflowSelectedToolConfig as ICommonObject) ||
+                {}
 
             const nodeInstanceFilePath = options.componentNodes[selectedTool].filePath as string
 
@@ -158,7 +161,7 @@ class Tool_Agentflow implements INode {
                     toolInputArgs = { properties: allProperties }
                 } else {
                     // Handle single tool instance
-                    toolInputArgs = toolInstance.schema ? zodToJsonSchema(toolInstance.schema) : {}
+                    toolInputArgs = toolInstance.schema ? zodToJsonSchema(toolInstance.schema as any) : {}
                 }
 
                 if (toolInputArgs && Object.keys(toolInputArgs).length > 0) {
@@ -184,7 +187,10 @@ class Tool_Agentflow implements INode {
 
     async run(nodeData: INodeData, input: string, options: ICommonObject): Promise<any> {
         const selectedTool = (nodeData.inputs?.selectedTool as string) || (nodeData.inputs?.toolAgentflowSelectedTool as string)
-        const selectedToolConfig = nodeData.inputs?.selectedToolConfig as ICommonObject
+        const selectedToolConfig =
+            (nodeData?.inputs?.selectedToolConfig as ICommonObject) ||
+            (nodeData?.inputs?.toolAgentflowSelectedToolConfig as ICommonObject) ||
+            {}
 
         const toolInputArgs = nodeData.inputs?.toolInputArgs as IToolInputArgs[]
         const _toolUpdateState = nodeData.inputs?.toolUpdateState
@@ -220,10 +226,51 @@ class Tool_Agentflow implements INode {
         const toolInstance = (await newToolNodeInstance.init(newNodeData, '', options)) as Tool | Tool[]
 
         let toolCallArgs: Record<string, any> = {}
+
+        const parseInputValue = (value: string): any => {
+            if (typeof value !== 'string') {
+                return value
+            }
+
+            // Remove escape characters (backslashes before special characters)
+            // ex: \["a", "b", "c", "d", "e"\]
+            let cleanedValue = value
+                .replace(/\\"/g, '"') // \" -> "
+                .replace(/\\\\/g, '\\') // \\ -> \
+                .replace(/\\\[/g, '[') // \[ -> [
+                .replace(/\\\]/g, ']') // \] -> ]
+                .replace(/\\\{/g, '{') // \{ -> {
+                .replace(/\\\}/g, '}') // \} -> }
+
+            // Try to parse as JSON if it looks like JSON/array
+            if (
+                (cleanedValue.startsWith('[') && cleanedValue.endsWith(']')) ||
+                (cleanedValue.startsWith('{') && cleanedValue.endsWith('}'))
+            ) {
+                try {
+                    return JSON.parse(cleanedValue)
+                } catch (e) {
+                    // If parsing fails, return the cleaned value
+                    return cleanedValue
+                }
+            }
+
+            return cleanedValue
+        }
+
+        if (newToolNodeInstance.transformNodeInputsToToolArgs) {
+            const defaultParams = newToolNodeInstance.transformNodeInputsToToolArgs(newNodeData)
+
+            toolCallArgs = {
+                ...defaultParams,
+                ...toolCallArgs
+            }
+        }
+
         for (const item of toolInputArgs) {
             const variableName = item.inputArgName
             const variableValue = item.inputArgValue
-            toolCallArgs[variableName] = variableValue
+            toolCallArgs[variableName] = parseInputValue(variableValue)
         }
 
         const flowConfig = {
@@ -262,6 +309,17 @@ class Tool_Agentflow implements INode {
                 }
             }
 
+            let toolInput
+            if (typeof toolOutput === 'string' && toolOutput.includes(TOOL_ARGS_PREFIX)) {
+                const [output, args] = toolOutput.split(TOOL_ARGS_PREFIX)
+                toolOutput = output
+                try {
+                    toolInput = JSON.parse(args)
+                } catch (e) {
+                    console.error('Error parsing tool input from tool:', e)
+                }
+            }
+
             if (typeof toolOutput === 'object') {
                 toolOutput = JSON.stringify(toolOutput, null, 2)
             }
@@ -284,7 +342,7 @@ class Tool_Agentflow implements INode {
                 id: nodeData.id,
                 name: this.name,
                 input: {
-                    toolInputArgs: toolInputArgs,
+                    toolInputArgs: toolInput ?? toolInputArgs,
                     selectedTool: selectedTool
                 },
                 output: {
